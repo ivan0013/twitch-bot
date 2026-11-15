@@ -3,24 +3,53 @@
 import { useCallback, useEffect, useState } from 'react';
 
 type Entry = { id: string; username: string; joinedAt: string };
-type QueueState = { isOpen: boolean; entries: Entry[] };
+type QueueState = { isOpen: boolean; entries: Entry[]; demo?: boolean };
+const DEMO_KEY = 'queuectrl-demo-v1';
+const DEMO_NAMES = ['pixelpirata', 'MareaGamer', 'LunaByte', 'NexoPlay', 'GaliciaGG'];
+function initialDemo(): QueueState {
+  return { demo: true, isOpen: true, entries: DEMO_NAMES.map((username, i) => ({ id: 'demo-' + i, username, joinedAt: new Date(Date.now() - (5 - i) * 60000).toISOString() })) };
+}
+function loadDemo() {
+  try { const value = localStorage.getItem(DEMO_KEY); if (value) return JSON.parse(value) as QueueState; } catch {}
+  return initialDemo();
+}
 export default function Home() {
   const [state, setState] = useState<QueueState | null>(null);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [working, setWorking] = useState(false);
+  const [newViewer, setNewViewer] = useState('');
   const refresh = useCallback(async () => {
     try {
       const response = await fetch('/api/queue', { cache: 'no-store' });
       if (!response.ok) throw new Error('No se pudo consultar la cola. Revisa Neon y las migraciones.');
-      setState(await response.json()); setError('');
+      const payload: QueueState = await response.json();
+      setState(payload.demo ? loadDemo() : payload); setError('');
     } catch (e) { setError(e instanceof Error ? e.message : 'Error desconocido'); }
   }, []);
   useEffect(() => { void refresh(); const timer = setInterval(() => void refresh(), 5000); return () => clearInterval(timer); }, [refresh]);
   async function run(action: string) {
-    if (!password || working) return;
+    if ((!state?.demo && !password) || working) return;
     setWorking(true); setNotice('');
+    if (state?.demo) {
+      const current = loadDemo();
+      let viewer: string | null = null;
+      if (action === 'open') current.isOpen = true;
+      else if (action === 'close') current.isOpen = false;
+      else if (action === 'clear') current.entries = [];
+      else if (action === 'next') viewer = current.entries.shift()?.username ?? null;
+      else if (action === 'add' && newViewer.trim() && current.isOpen) {
+        const username = newViewer.trim().replace(/^@/, '').slice(0, 25);
+        if (!current.entries.some(e => e.username.toLowerCase() === username.toLowerCase())) current.entries.push({ id: crypto.randomUUID(), username, joinedAt: new Date().toISOString() });
+        setNewViewer('');
+      }
+      localStorage.setItem(DEMO_KEY, JSON.stringify(current));
+      setState({ ...current });
+      setNotice(action === 'next' ? (viewer ? 'Le toca jugar a @' + viewer : 'La cola está vacía.') : 'Simulación actualizada.');
+      setWorking(false);
+      return;
+    }
     try {
       const response = await fetch('/api/queue', { method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Basic ' + btoa('admin:' + password) },
@@ -33,8 +62,9 @@ export default function Home() {
     finally { setWorking(false); }
   }
   return <main className="shell">
-    <header className="topbar"><a className="brand" href="/">QUEUE<span>CTRL</span><b>.</b></a><span className="header-note">TWITCH / CONTROL ROOM</span><span className="live-dot">LIVE SYNC</span></header>
+    <header className="topbar"><a className="brand" href="/">QUEUE<span>CTRL</span><b>.</b></a><span className="header-note">TWITCH / CONTROL ROOM</span><span className="live-dot">{state?.demo ? '● MODO DEMO' : '● LIVE SYNC'}</span></header>
     <section className="hero"><div className="eyebrow">TU DIRECTO, TU RITMO <span>— 01 / QUEUE MANAGER</span></div><h1>La siguiente<br/><em>partida</em> empieza aquí<span className="accent">.</span></h1><p>Tu chat decide quién se apunta. Tú decides cuándo empieza el siguiente turno.</p></section>
+    {state?.demo && <p className="demo-banner">MODO DEMOSTRACIÓN · Los jugadores son ficticios. Los cambios se guardan solo en este navegador. No hay conexión a Twitch.</p>}
     <section className="dashboard">
       <div className="queue-panel">
         <div className="panel-heading"><div><span className="kicker">EN TIEMPO REAL</span><h2>Lista de espera <span className="count">{state?.entries.length ?? '—'}</span></h2></div><span className={'status ' + (state?.isOpen ? 'open' : 'closed')}>{state ? state.isOpen ? '● ABIERTA' : '● CERRADA' : 'CARGANDO'}</span></div>
@@ -43,7 +73,8 @@ export default function Home() {
           <ol className="entries">{state.entries.map((entry, index) => <li key={entry.id}><span className="position">{String(index + 1).padStart(2, '0')}</span><span className="avatar">{entry.username[0]?.toUpperCase()}</span><strong>@{entry.username}</strong>{index === 0 && <span className="next-tag">SIGUIENTE</span>}<small>{new Date(entry.joinedAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</small></li>)}</ol>}
         <div className="queue-footer">ACTUALIZACIÓN AUTOMÁTICA CADA 5 SEGUNDOS <span>↻</span></div>
       </div>
-      <aside className="side-panel"><span className="kicker">SOLO STREAMER</span><h2>Control de cola<span className="accent">.</span></h2><label htmlFor="password">Contraseña de administrador</label><input id="password" type="password" autoComplete="off" value={password} onChange={e => setPassword(e.target.value)} placeholder="Introduce tu clave" /><p className="hint">La clave solo se utiliza para enviar acciones; no se guarda en el navegador.</p><button className="primary" disabled={!password || working} onClick={() => void run('next')}>Siguiente jugador <span>↗</span></button><div className="actions"><button disabled={!password || working} onClick={() => void run(state?.isOpen ? 'close' : 'open')}>{state?.isOpen ? 'Cerrar cola' : 'Abrir cola'}</button><button disabled={!password || working} onClick={() => { if (window.confirm('¿Vaciar toda la lista de espera?')) void run('clear'); }}>Vaciar cola</button></div>{notice && <p className="notice" role="status">{notice}</p>}<div className="commands"><span className="kicker">COMANDOS DE CHAT</span><p><code>!join</code> Apuntarse</p><p><code>!salir</code> Abandonar</p><p><code>!cola</code> Ver estado</p><p><code>!siguiente</code> Solo streamer</p></div></aside>
+      <aside className="side-panel"><span className="kicker">SOLO STREAMER</span><h2>Control de cola<span className="accent">.</span></h2>{!state?.demo && <><label htmlFor="password">Contraseña de administrador</label><input id="password" type="password" autoComplete="off" value={password} onChange={e => setPassword(e.target.value)} placeholder="Introduce tu clave" /><p className="hint">La clave solo se utiliza para enviar acciones; no se guarda en el navegador.</p></>}
+      {state?.demo && <><label htmlFor="demo-viewer">Simular nuevo viewer</label><div className="demo-add"><input id="demo-viewer" value={newViewer} onChange={e => setNewViewer(e.target.value)} maxLength={25} placeholder="Nombre de viewer" /><button disabled={!newViewer.trim() || !state.isOpen || working} onClick={() => void run('add')}>+ Añadir</button></div><button className="reset-demo" onClick={() => { const fresh = initialDemo(); localStorage.setItem(DEMO_KEY, JSON.stringify(fresh)); setState(fresh); setNotice('Demo reiniciada.'); }}>↺ Reiniciar demo</button></>}<button className="primary" disabled={(!state?.demo && !password) || working} onClick={() => void run('next')}>Siguiente jugador <span>↗</span></button><div className="actions"><button disabled={(!state?.demo && !password) || working} onClick={() => void run(state?.isOpen ? 'close' : 'open')}>{state?.isOpen ? 'Cerrar cola' : 'Abrir cola'}</button><button disabled={(!state?.demo && !password) || working} onClick={() => { if (window.confirm('¿Vaciar toda la lista de espera?')) void run('clear'); }}>Vaciar cola</button></div>{notice && <p className="notice" role="status">{notice}</p>}<div className="commands"><span className="kicker">COMANDOS DE CHAT</span><p><code>!join</code> Apuntarse</p><p><code>!salir</code> Abandonar</p><p><code>!cola</code> Ver estado</p><p><code>!siguiente</code> Solo streamer</p></div></aside>
     </section><footer>QUEUECTRL / BUILT WITH IDEAS. <span>READY WHEN YOU ARE ↗</span></footer>
   </main>;
 }
