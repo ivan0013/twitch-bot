@@ -4,3 +4,5 @@
 
 .demo-banner{border:1px solid #768640;background:#23291b;color:#d5ff5a;padding:17px 22px;font:600 12px 'Space Grotesk',sans-serif;letter-spacing:.5px;margin:-25px 0 22px}
 .demo-add{display:flex;gap:8px}.demo-add input{min-width:0;flex:1}.demo-add button{background:var(--lime);border:0;padding:0 15px;font-weight:700;color:#171a1c;white-space:nowrap}.reset-demo{margin-top:12px;background:transparent;border:0;padding:4px 0;color:var(--muted);font-size:12px;text-decoration:underline}
+
+.twitch-connect{margin-top:36px;padding-top:22px;border-top:1px solid var(--line)}.twitch-connect p{color:var(--ink);font-size:13px;margin:13px 0;line-height:1.5}.twitch-connect small{display:block;color:var(--muted);margin-top:12px;line-height:1.5}.connect-button{width:100%;border:1px solid var(--lime);padding:13px;background:transparent;color:var(--lime);font-size:13px;font-weight:700}.connect-button:disabled{opacity:.5}

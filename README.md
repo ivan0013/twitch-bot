@@ -51,3 +51,20 @@ Requiere Node.js 22+, un proyecto Neon y una app Twitch registrada.
 ## Desarrollo
 
 `npm run typecheck` · `npm run build` · `npm run db:generate` · `npm run db:migrate`
+
+## Connect with Twitch (OAuth button)
+
+The panel includes **Conectar con Twitch**. This MVP uses a single account: the Twitch channel owner is also the bot identity, so bot responses are posted under the streamer's Twitch username.
+
+1. Create a **Confidential** Twitch developer app at https://dev.twitch.tv/console/apps with exact OAuth callback: `https://twitch-bot-ivan0013.vercel.app/api/auth/twitch/callback`.
+2. On Vercel set `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`, `TWITCH_TOKEN_ENCRYPTION_KEY` (32-byte hexadecimal AES key), `TWITCH_EVENTSUB_SECRET` (random 10–100 char secret), `PUBLIC_BASE_URL=https://twitch-bot-ivan0013.vercel.app`, `DATABASE_URL` and `ADMIN_PASSWORD`. Keep all secrets server-side. Deploy after updating env vars.
+3. Run `npm run db:generate && npm run db:migrate` against the configured Neon database before connecting. The new `twitch_accounts` table stores AES-256-GCM encrypted OAuth tokens.
+4. Enter the admin password in the panel and click **Conectar con Twitch**. Approve the scopes in Twitch, and you will return to the dashboard.
+5. The callback exchanges the code, retrieves your Twitch user ID, stores the encrypted OAuth token pair, and attempts to register a signed EventSub webhook. The status endpoint exposes only public username and connection readiness, not tokens.
+
+Notes:
+- OAuth uses random state in a 10-minute HttpOnly Secure SameSite=Lax cookie; callbacks reject mismatches.
+- The button is intentionally disabled if Vercel lacks required settings. Demo queue works independently.
+- User tokens refresh on a 401 response while sending chat; refreshed tokens are encrypted and persisted. Twitch may invalidate them and require reconnecting.
+- Webhook retries and deduplication are not fully reliable after an event is reserved and before its handler completes; production reliability hardening is pending.
+- One Twitch account per deployment; connecting a different account replaces the saved owner. There is currently no separate dedicated bot-account onboarding.

@@ -16,3 +16,12 @@ export const processedEvents = pgTable('processed_events', {
   id: varchar('id', { length: 128 }).primaryKey(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const twitchAccounts = pgTable('twitch_accounts', {
+  key: varchar('key', { length: 24 }).primaryKey(),
+  twitchId: varchar('twitch_id', { length: 64 }).notNull(),
+  login: varchar('login', { length: 64 }).notNull(),
+  accessToken: varchar('access_token', { length: 2048 }).notNull(),
+  refreshToken: varchar('refresh_token', { length: 2048 }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
