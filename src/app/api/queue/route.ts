@@ -5,6 +5,7 @@ import { isAdmin } from '@/lib/admin';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export async function GET() {
+  if (!process.env.DATABASE_URL) return NextResponse.json({ demo: true, isOpen: true, entries: [] }, { headers: { 'Cache-Control': 'no-store' } });
   try {
     const state = await snapshot();
     return NextResponse.json({ isOpen: state.isOpen, entries: state.entries.map(({ id, username, joinedAt }) => ({ id, username, joinedAt })) }, { headers: { 'Cache-Control': 'no-store' } });
